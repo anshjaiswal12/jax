@@ -4973,6 +4973,41 @@ class PallasCallTCGen05Test(PallasTCGen05Test):
     x_result = jax.block_until_ready(kernel(x))
     np.testing.assert_array_equal(x_result, x + 1)
 
+  def test_tmem_ref_union_caching(self):
+    # This is a regression test for CSE of aliased refs. Aliased refs with the
+    # same shape and dtype should be treated as distinct references. I.e.
+    # they can have different TMEM layouts.
+    shape, dtype = (128, 128), jnp.float16
+
+    @self.kernel(
+        out_type=(
+            jax.ShapeDtypeStruct(shape, dtype),
+            jax.ShapeDtypeStruct(shape, dtype),
+        ),
+    )
+    def kernel(src_ref, o_ref0, o_ref1):
+      def _scope(o_ref, aliased_ref):
+        [tmem] = aliased_ref
+        reg_layout = plgpu.Layout.TCGEN05
+        val = plgpu.load(src_ref, (), layout=reg_layout, optimized=False)
+        plgpu.async_store_tmem(tmem, val)
+        plgpu.commit_tmem()
+        o_ref[...] = plgpu.async_load_tmem(tmem)
+
+      pl.run_scoped(
+          functools.partial(_scope, o_ref0),
+          plgpu.RefUnion(plgpu.TMEM(shape, dtype, packed=False)),
+      )
+      pl.run_scoped(
+          functools.partial(_scope, o_ref1),
+          plgpu.RefUnion(plgpu.TMEM(shape, dtype, packed=True)),
+      )
+
+    src = jnp.arange(math.prod(shape), dtype=dtype).reshape(shape)
+    out0, out1 = kernel(src)
+    np.testing.assert_array_equal(out0, src)
+    np.testing.assert_array_equal(out1, src)
+
   @parameterized.parameters(
       plgpu.Layout.TCGEN05, plgpu.Layout.TCGEN05_TMEM_NATIVE
   )

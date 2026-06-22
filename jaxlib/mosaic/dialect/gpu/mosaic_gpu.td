@@ -1127,7 +1127,8 @@ def MosaicGPU_SliceTmemOp : Op<MosaicGPU_Dialect, "slice_tmem", []> {
 
   let arguments = (ins
     MemRefRankOf<[AnyType], [2]>:$source,
-    ConfinedAttr<I32Attr, [IntNonNegative]>:$offset
+    ConfinedAttr<I32Attr, [IntNonNegative]>:$offset,
+    OptionalAttr<I64Attr>:$alias_id
   );
 
   let results = (outs MemRefRankOf<[AnyType], [2]>);
