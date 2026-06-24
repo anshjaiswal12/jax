@@ -128,6 +128,7 @@ class PallasSCTest(jtu.JaxTestCase):
           scratch_types=dict(scratch_args=scratch_shapes),
           compiler_params=compiler_params,
       )
+      @functools.wraps(fn)
       def wrapper(*args_hbm, scratch_args):
         @functools.partial(
             pltpu.emit_pipeline,
